@@ -9,13 +9,6 @@ const H = 600;
 const keys = {};
 const justPressed = {};
 
-window.addEventListener('keydown', e => {
-  justPressed[e.code] = !keys[e.code];
-  keys[e.code] = true;
-  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code))
-    e.preventDefault();
-});
-window.addEventListener('keyup', e => { keys[e.code] = false; });
 
 function pressed(code) {
   const val = justPressed[code];
@@ -24,9 +17,9 @@ function pressed(code) {
 }
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
-const wrap  = (v, max) => ((v % max) + max) % max;
-const dist  = (a, b)   => Math.hypot(a.x - b.x, a.y - b.y);
-const rand  = (min, max) => min + Math.random() * (max - min);
+const wrap = (v, max) => ((v % max) + max) % max;
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const rand = (min, max) => min + Math.random() * (max - min);
 const randInt = (min, max) => Math.floor(rand(min, max + 1));
 
 // ── Bullet ────────────────────────────────────────────────────────────────────
@@ -37,7 +30,7 @@ class Bullet {
     const SPEED = 520;
     this.vx = Math.cos(angle) * SPEED;
     this.vy = Math.sin(angle) * SPEED;
-    this.ttl  = 1.1;
+    this.ttl = 1.1;
     this.radius = 2;
     this.dead = false;
   }
@@ -58,14 +51,25 @@ class Bullet {
 }
 
 // ── Asteroid ──────────────────────────────────────────────────────────────────
-const RADII  = [0, 16, 30, 50];   // por tamaño 1, 2, 3
+const RADII = [0, 16, 30, 50];   // por tamaño 1, 2, 3
 const SPEEDS = [0, 85, 55, 32];   // velocidad base por tamaño
 const POINTS = [0, 100, 50, 20];  // puntos por tamaño
 
+// Formas fijas para asteroides grandes (size 3): cada entrada es un polígono
+// normalizado ([x, y] como fracción del radio). `null` = polígono random clásico.
+const LARGE_ASTEROID_SHAPES = [
+  null,
+  [
+    [0.930, 0.011], [0.782, 0.561], [0.282, 0.547], [0.049, 0.934],
+    [-0.635, 0.596], [-0.959, 0.018], [-0.804, -0.595], [-0.092, -0.983],
+    [0.507, -0.799], [0.380, -0.228], [0.944, -0.052],
+  ],
+];
+
 class Asteroid {
   constructor(x, y, size = 3) {
-    this.x    = x;
-    this.y    = y;
+    this.x = x;
+    this.y = y;
     this.size = size;
     this.radius = RADII[size];
     this.dead = false;
@@ -77,19 +81,27 @@ class Asteroid {
     this.rotSpeed = rand(-1.2, 1.2);
     this.rot = rand(0, Math.PI * 2);
 
-    // Polígono irregular
-    const n = randInt(8, 13);
-    this.verts = [];
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2;
-      const r = this.radius * rand(0.6, 1.0);
-      this.verts.push([Math.cos(a) * r, Math.sin(a) * r]);
+    const fixedShape = size === 3
+      ? LARGE_ASTEROID_SHAPES[randInt(0, LARGE_ASTEROID_SHAPES.length - 1)]
+      : null;
+
+    if (fixedShape) {
+      this.verts = fixedShape.map(([nx, ny]) => [nx * this.radius, ny * this.radius]);
+    } else {
+      // Polígono irregular
+      const n = randInt(8, 13);
+      this.verts = [];
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        const r = this.radius * rand(0.6, 1.0);
+        this.verts.push([Math.cos(a) * r, Math.sin(a) * r]);
+      }
     }
   }
 
   update(dt) {
-    this.x   = wrap(this.x + this.vx * dt, W);
-    this.y   = wrap(this.y + this.vy * dt, H);
+    this.x = wrap(this.x + this.vx * dt, W);
+    this.y = wrap(this.y + this.vy * dt, H);
     this.rot += this.rotSpeed * dt;
   }
 
@@ -106,8 +118,8 @@ class Asteroid {
     ctx.translate(this.x, this.y);
     ctx.rotate(this.rot);
     ctx.strokeStyle = '#fff';
-    ctx.lineWidth   = 1.5;
-    ctx.lineJoin    = 'round';
+    ctx.lineWidth = 1.5;
+    ctx.lineJoin = 'round';
     ctx.beginPath();
     ctx.moveTo(this.verts[0][0], this.verts[0][1]);
     for (let i = 1; i < this.verts.length; i++)
@@ -123,28 +135,28 @@ class Ship {
   constructor() { this.reset(); }
 
   reset() {
-    this.x      = W / 2;
-    this.y      = H / 2;
-    this.angle  = -Math.PI / 2;
-    this.vx     = 0;
-    this.vy     = 0;
+    this.x = W / 2;
+    this.y = H / 2;
+    this.angle = -Math.PI / 2;
+    this.vx = 0;
+    this.vy = 0;
     this.radius = 12;
-    this.thrusting     = false;
-    this.invincible    = 3;
+    this.thrusting = false;
+    this.invincible = 3;
     this.shootCooldown = 0;
-    this.dead          = false;
+    this.dead = false;
   }
 
   update(dt) {
     if (this.dead) return;
-    if (this.invincible    > 0) this.invincible    -= dt;
+    if (this.invincible > 0) this.invincible -= dt;
     if (this.shootCooldown > 0) this.shootCooldown -= dt;
 
-    const ROT   = 3.5;   // rad/s
+    const ROT = 3.5;   // rad/s
     const THRUST = 260;  // px/s²
-    const DRAG   = 0.987;
+    const DRAG = 0.987;
 
-    if (keys['ArrowLeft'])  this.angle -= ROT * dt;
+    if (keys['ArrowLeft']) this.angle -= ROT * dt;
     if (keys['ArrowRight']) this.angle += ROT * dt;
 
     this.thrusting = !!keys['ArrowUp'];
@@ -177,15 +189,15 @@ class Ship {
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
     ctx.strokeStyle = '#fff';
-    ctx.lineWidth   = 1.5;
-    ctx.lineJoin    = 'round';
+    ctx.lineWidth = 1.5;
+    ctx.lineJoin = 'round';
 
     // Silueta clásica: triángulo con muesca trasera
     ctx.beginPath();
-    ctx.moveTo( 20,  0);   // nariz
+    ctx.moveTo(20, 0);   // nariz
     ctx.lineTo(-12, -9);   // ala izquierda
-    ctx.lineTo( -7,  0);   // muesca trasera
-    ctx.lineTo(-12,  9);   // ala derecha
+    ctx.lineTo(-7, 0);   // muesca trasera
+    ctx.lineTo(-12, 9);   // ala derecha
     ctx.closePath();
     ctx.stroke();
 
@@ -194,7 +206,7 @@ class Ship {
       ctx.beginPath();
       ctx.moveTo(-8, -4);
       ctx.lineTo(-8 - rand(6, 14), 0);
-      ctx.lineTo(-8,  4);
+      ctx.lineTo(-8, 4);
       ctx.strokeStyle = 'rgba(255, 130, 0, 0.85)';
       ctx.stroke();
     }
@@ -206,20 +218,20 @@ class Ship {
 // ── Partículas (explosión) ────────────────────────────────────────────────────
 class Particle {
   constructor(x, y) {
-    this.x  = x;
-    this.y  = y;
+    this.x = x;
+    this.y = y;
     const angle = rand(0, Math.PI * 2);
     const speed = rand(30, 130);
-    this.vx   = Math.cos(angle) * speed;
-    this.vy   = Math.sin(angle) * speed;
+    this.vx = Math.cos(angle) * speed;
+    this.vy = Math.sin(angle) * speed;
     this.life = rand(0.4, 1.1);
-    this.ttl  = this.life;
+    this.ttl = this.life;
     this.dead = false;
   }
 
   update(dt) {
-    this.x  += this.vx * dt;
-    this.y  += this.vy * dt;
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
     this.ttl -= dt;
     if (this.ttl <= 0) this.dead = true;
   }
@@ -254,20 +266,20 @@ function spawnAsteroids(count) {
 }
 
 function initGame() {
-  ship          = new Ship();
-  bullets   = [];
+  ship = new Ship();
+  bullets = [];
   asteroids = [];
   particles = [];
-  score  = 0;
-  lives  = 3;
-  level  = 1;
-  state  = 'playing';
+  score = 0;
+  lives = 3;
+  level = 1;
+  state = 'playing';
   spawnAsteroids(4);
 }
 
 function nextLevel() {
   level++;
-  bullets   = [];
+  bullets = [];
   particles = [];
   ship.reset();
   spawnAsteroids(3 + level);
@@ -284,7 +296,7 @@ function killShip() {
   if (lives <= 0) {
     state = 'gameover';
   } else {
-    state     = 'dead';
+    state = 'dead';
     deadTimer = 2;
   }
 }
@@ -317,7 +329,7 @@ function update(dt) {
   asteroids.forEach(a => a.update(dt));
   particles.forEach(p => p.update(dt));
 
-  bullets   = bullets.filter(b => !b.dead);
+  bullets = bullets.filter(b => !b.dead);
   particles = particles.filter(p => !p.dead);
 
   // Bala vs asteroide
@@ -334,7 +346,7 @@ function update(dt) {
     }
   }
   asteroids = asteroids.filter(a => !a.dead).concat(newAsteroids);
-  bullets   = bullets.filter(b => !b.dead);
+  bullets = bullets.filter(b => !b.dead);
 
   // Nave vs asteroide
   if (ship.invincible <= 0) {
@@ -356,13 +368,13 @@ function drawLifeIcon(x, y) {
   ctx.translate(x, y);
   ctx.rotate(-Math.PI / 2);
   ctx.strokeStyle = '#fff';
-  ctx.lineWidth   = 1.2;
-  ctx.lineJoin    = 'round';
+  ctx.lineWidth = 1.2;
+  ctx.lineJoin = 'round';
   ctx.beginPath();
-  ctx.moveTo( 9,  0);
+  ctx.moveTo(9, 0);
   ctx.lineTo(-6, -5);
-  ctx.lineTo(-3,  0);
-  ctx.lineTo(-6,  5);
+  ctx.lineTo(-3, 0);
+  ctx.lineTo(-6, 5);
   ctx.closePath();
   ctx.stroke();
   ctx.restore();
@@ -384,12 +396,12 @@ function drawHUD() {
 }
 
 function drawOverlay(title, sub) {
-  ctx.textAlign   = 'center';
-  ctx.fillStyle   = '#fff';
-  ctx.font        = 'bold 46px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 46px monospace';
   ctx.fillText(title, W / 2, H / 2 - 18);
-  ctx.font        = '18px monospace';
-  ctx.fillStyle   = 'rgba(255,255,255,0.65)';
+  ctx.font = '18px monospace';
+  ctx.fillStyle = 'rgba(255,255,255,0.65)';
   ctx.fillText(sub, W / 2, H / 2 + 22);
 }
 
